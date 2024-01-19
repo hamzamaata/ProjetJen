@@ -1,0 +1,73 @@
+version: '5'
+services:
+  mysqldb:
+    image: mysql:latest
+    container_name: mysqldb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - 3306:3306
+  consul:
+    image: consul:1.15.4
+    container_name: consul
+    ports:
+      - "8500:8500"
+  client-service-docker:
+    build: ./client
+    container_name: client-service-docker
+    environment:
+      spring.datasource.url: jdbc:mysql://mysqldb:3306/clientservicedb?createDatabaseIfNotExist=true
+      spring.datasource.username: root
+      spring.datasource.password: root
+      spring.cloud.consul.host: consul
+      spring.cloud.consul.port: 8500
+      spring.cloud.consul.discovery.enabled: true
+    restart: always
+    ports:
+      - 8081:8081
+    links:
+      - mysqldb
+    depends_on:
+      - consul
+
+  voiture-service-docker:
+    container_name: voiture-service-docker
+    build: ./voiture
+    environment:
+      spring.datasource.url: jdbc:mysql://mysqldb:3306/carservicedb?createDatabaseIfNotExist=true
+      spring.datasource.username: root
+      spring.datasource.password: root
+      spring.cloud.consul.host: consul
+      spring.cloud.consul.port: 8500
+      spring.cloud.consul.discovery.enabled: true
+    restart: always
+    ports:
+      - 8082:8082
+    links:
+      - mysqldb
+    depends_on:
+      - consul
+  gateway:
+    container_name: gateway
+    build: ./gateway
+    ports:
+      - "8888:8888"
+    environment:
+      spring.cloud.consul.host: consul
+      spring.cloud.consul.port: 8500
+      spring.cloud.consul.discovery.enabled: true
+    links:
+      - consul
+      - client-service-docker
+      - voiture-service-docker
+    depends_on:
+      - consul
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    environment:
+      PMA_HOST: mysqldb
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "8090:80"
